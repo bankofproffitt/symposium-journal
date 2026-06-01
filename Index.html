@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACL Research Symposium Journal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        /* CSS Reset & Basic Setup */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        /* Nature-Style Typography */
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #fcfcfc;
+            color: #222;
+            line-height: 1.6;
+        }
+        h1, h2, h3, .serif {
+            font-family: 'Georgia', 'Times New Roman', serif;
+        }
+
+        /* Header Styling */
+        header {
+            border-bottom: 4px solid #cc0000;
+            padding: 2rem 10%;
+            background-color: #fff;
+            margin-bottom: 2rem;
+        }
+        header h1 {
+            font-size: 2.5rem;
+            color: #111;
+            margin-bottom: 0.5rem;
+        }
+        header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        /* Controls: Search and Filter */
+        .controls {
+            padding: 0 10%;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .control-group label {
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 0.3rem;
+            color: #444;
+        }
+        input[type="text"], select {
+            padding: 0.6rem;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 1rem;
+        }
+        input[type="text"] {
+            width: 300px;
+        }
+
+        /* Results Container */
+        main {
+            padding: 0 10%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        #results-count {
+            margin-bottom: 1rem;
+            font-weight: bold;
+            color: #cc0000;
+        }
+        #loading-message {
+            font-size: 1.2rem;
+            color: #666;
+            font-style: italic;
+        }
+
+        /* Article Card Styling */
+        .article {
+            background: #fff;
+            border-top: 1px solid #ddd;
+            padding: 2rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+        .article-category {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            color: #cc0000;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .article-title {
+            font-size: 1.8rem;
+            color: #000;
+            line-height: 1.3;
+        }
+        .article-authors {
+            font-size: 1rem;
+            color: #444;
+        }
+        .article-meta {
+            font-size: 0.9rem;
+            color: #777;
+        }
+        .article-abstract {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            font-size: 1.05rem;
+            color: #333;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 class="serif">ACL Research Symposium Journal</h1>
+        <p>Explore the 2026 Student Research Projects and Abstracts</p>
+    </header>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="searchInput">Search Projects:</label>
+            <input type="text" id="searchInput" placeholder="Search by title, abstract, or author...">
+        </div>
+        <div class="control-group">
+            <label for="categoryFilter">Filter by Category:</label>
+            <select id="categoryFilter">
+                <option value="All">All Categories</option>
+            </select>
+        </div>
+    </div>
+
+    <main>
+        <div id="loading-message">Loading journal database...</div>
+        <div id="results-count" style="display: none;"></div>
+        <div id="journal-container"></div>
+    </main>
+
+    <script>
+        let journalData = [];
+
+        // DOM Elements
+        const searchInput = document.getElementById('searchInput');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const container = document.getElementById('journal-container');
+        const countDisplay = document.getElementById('results-count');
+        const loadingMessage = document.getElementById('loading-message');
+
+        // Event Listeners
+        searchInput.addEventListener('input', filterAndRender);
+        categoryFilter.addEventListener('change', filterAndRender);
+
+        // Fetch the CSV automatically when the page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            // We tell PapaParse to download the file directly from our server directory
+            Papa.parse("database.csv", {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    journalData = results.data;
+                    loadingMessage.style.display = 'none';
+                    countDisplay.style.display = 'block';
+                    
+                    populateCategoryDropdown(journalData);
+                    filterAndRender(); // Initial render
+                },
+                error: function(err) {
+                    loadingMessage.textContent = "Error loading database. Ensure 'database.csv' is uploaded alongside the HTML file.";
+                    loadingMessage.style.color = "red";
+                }
+            });
+        });
+
+        function populateCategoryDropdown(data) {
+            const categories = new Set();
+            const categoryColumn = "Which category would your research best fit? Choose the category where professionals in the community with that expertise would best understand your work. See category descriptions at this link: https://www.societyforscience.org/isef/categories-and-subcategories/all-categories/";
+            
+            data.forEach(row => {
+                const cat = row[categoryColumn];
+                if (cat) categories.add(cat.trim());
+            });
+
+            categoryFilter.innerHTML = '<option value="All">All Categories</option>';
+            Array.from(categories).sort().forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categoryFilter.appendChild(option);
+            });
+        }
+
+        function filterAndRender() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedCategory = categoryFilter.value;
+            
+            const categoryCol = "Which category would your research best fit? Choose the category where professionals in the community with that expertise would best understand your work. See category descriptions at this link: https://www.societyforscience.org/isef/categories-and-subcategories/all-categories/";
+            const titleCol = "Title of Your Project (use Title Case)";
+            const abstractCol = "Abstract - Add the entire text of your abstract here. Please do NOT include your project title or your name in your abstract. Note that special characters and formatting may not be preserved in the abstract book. Please do not exceed 250 words.";
+
+            const filteredData = journalData.filter(row => {
+                const title = (row[titleCol] || "").toLowerCase();
+                const abstract = (row[abstractCol] || "").toLowerCase();
+                const author = ((row["First Name"] || "") + " " + (row["Last Name"] || "")).toLowerCase();
+                const category = row[categoryCol] || "";
+
+                const matchesSearch = title.includes(searchTerm) || abstract.includes(searchTerm) || author.includes(searchTerm);
+                const matchesCategory = selectedCategory === "All" || category === selectedCategory;
+
+                return matchesSearch && matchesCategory;
+            });
+
+            renderArticles(filteredData, titleCol, abstractCol, categoryCol);
+        }
+
+        function renderArticles(data, titleCol, abstractCol, categoryCol) {
+            container.innerHTML = ""; 
+            countDisplay.textContent = `Showing ${data.length} Article${data.length !== 1 ? 's' : ''}`;
+
+            data.forEach(row => {
+                const authorName = `${row["First Name"] || ""} ${row["Last Name"] || ""}`;
+                const partnerName = row["If you have a research partner, list their name below as it should appear in the program (First Last). Only ONE partner should complete this form to register the project.  "] || "";
+                
+                let fullAuthors = authorName;
+                if (partnerName) {
+                    fullAuthors += ` & ${partnerName}`;
+                }
+
+                const articleHTML = `
+                    <article class="article">
+                        <div class="article-category">${row[categoryCol] || "Uncategorized"}</div>
+                        <h2 class="article-title serif">${row[titleCol] || "Untitled Project"}</h2>
+                        <div class="article-authors"><strong>Authors:</strong> ${fullAuthors}</div>
+                        <div class="article-meta">
+                            <strong>Project Code:</strong> ${row["Project Code"] || "N/A"} | 
+                            <strong>Division:</strong> ${row["What ACL Division are you in?"] || "N/A"} | 
+                            <strong>Teacher:</strong> ${row["ACL Research Teacher"] || "N/A"}
+                        </div>
+                        <p class="article-abstract"><strong>Abstract:</strong> ${row[abstractCol] || "No abstract provided."}</p>
+                    </article>
+                `;
+                container.innerHTML += articleHTML;
+            });
+        }
+    </script>
+</body>
+</html>
